@@ -8,3 +8,4 @@ class Client:
 
     def send(self, message=""):
         pass
+
