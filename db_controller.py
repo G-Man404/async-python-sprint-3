@@ -55,7 +55,7 @@ def reg(login, password_hash, name):
     except DoesNotExist:
         new_user = Users(
             login=login,
-            password=password,
+            password_hash=password_hash,
             name=name
         )
         new_user.save()

@@ -37,10 +37,10 @@ class Server:
         while True:
             message = await read(reader)
             if not current_user:
-                if message["code"] != 110:
+                if message["code"] not in [110, 150]:
                     await write(writer, 210)
                     continue
-                else:
+                elif message["code"] == 110:
                     user = db_controller.auth(message["text"][0], message["text"][1])
                     if isinstance(user, db_controller.Users):
                         current_user = user
@@ -50,13 +50,24 @@ class Server:
                     else:
                         await write(writer, 212)
                         continue
+                elif message["code"] == 150:
+                    user = db_controller.reg(message["text"][0], message["text"][1], message["text"][2])
+                    if isinstance(user, db_controller.Users):
+                        await write(writer, 250)
+                        continue
+                    elif message["text"] == "login_busy":
+                        await write(writer, 251)
+                        continue
+                    else:
+                        await write(writer, 252)
+                        continue
 
             if message["code"] == 120:
                 command = message["text"][0]
                 arg = message["text"][1:]
                 if command == "connect":
                     connect = arg[0]
-                    await write(writer, 213)
+                    await write(writer, 220)
                     continue
                 if command == "exit":
                     await write(writer, 240)
