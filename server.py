@@ -63,7 +63,7 @@ class Server:
                     writer.write("Для регистрации введите команду: /reg login password\n".encode())
                     await writer.drain()
                     continue
-
+            # new 123
             if str_data[0] == "/exit":
                 current_user.status = "offline"
                 current_user.save()
