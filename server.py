@@ -85,19 +85,37 @@ class Server:
                     continue
                 if message["code"] == 130:
                     if connect == "everyone":
-                        new_messages = db_controller.give_received_message_for_everyone(current_user)
+                        new_messages = db_controller.give_all_message_everyone(current_user)
                         messages = ""
                         for new_message in new_messages:
                             messages += f"{new_message.sender.name} {new_message.text}\n"
                         print(messages)
                         await write(writer, 230, messages)
                     else:
-                        new_messages = db_controller.give_received_message_ptp(current_user, connect)
+                        new_messages = db_controller.give_all_message_ptp(current_user, connect)
+                        messages = ""
+                        for new_message in new_messages:
+                            messages += f"{new_message.sender.name} {new_message.text}\n"
+                        await write(writer, 230, messages)
+                if message["code"] == 133:
+                    if connect == "everyone":
+                        new_messages = db_controller.give_new_message_everyone(current_user,
+                                                                               datetime.datetime.strptime(message["text"][0], '%Y-%m-%d-%H:%M:%S'))
                         messages = ""
                         for new_message in new_messages:
                             messages += f"{new_message.sender.name} {new_message.text}\n"
                         print(messages)
-                        await write(writer, 230, messages)
+                        await write(writer, 233, messages)
+                    else:
+                        new_messages = db_controller.give_new_message_ptp(current_user, connect,
+                                                                          datetime.datetime.strptime(message["text"][0], '%Y-%m-%d %H:%M:%S.%f'))
+                        messages = ""
+                        for new_message in new_messages:
+                            messages += f"{new_message.sender.name} {new_message.text}\n"
+                        print(messages)
+                        await write(writer, 233, messages)
+
+
 
 
     async def main(self):
