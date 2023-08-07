@@ -73,6 +73,11 @@ class Server:
                     await write(writer, 240)
                     writer.close()
                     break
+                if command == "status":
+                    new_message = "Пользователи онлайн:\n"
+                    for user in self.users.values():
+                        new_message += user.login + "\n"
+                    await write(writer, 221, new_message)
 
             if connect:
                 if message["code"] == 131:
@@ -85,14 +90,14 @@ class Server:
                     continue
                 if message["code"] == 130:
                     if connect == "everyone":
-                        new_messages = db_controller.give_all_message_everyone(current_user)
+                        new_messages = db_controller.give_received_message_for_everyone(current_user)
                         messages = ""
                         for new_message in new_messages:
                             messages += f"{new_message.sender.name} {new_message.text}\n"
                         print(messages)
                         await write(writer, 230, messages)
                     else:
-                        new_messages = db_controller.give_all_message_ptp(current_user, connect)
+                        new_messages = db_controller.give_received_message_ptp(current_user, connect)
                         messages = ""
                         for new_message in new_messages:
                             messages += f"{new_message.sender.name} {new_message.text}\n"
