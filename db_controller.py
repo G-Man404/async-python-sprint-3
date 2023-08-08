@@ -108,55 +108,46 @@ def give_received_message_ptp(user, sender):
     return new_message
 
 
-# def give_all_message_everyone(user):
-#     messages = Message.select().where(Message.message_type == "everyone")
-#     return messages[-20:]
-#
-#
-# def give_all_message_ptp(user, sender):
-#     sender_object = Users.select().where(Users.login == sender)
-#     messages = Message.select().where(Message.message_type == "ptp", Message.sender == sender_object,
-#                                       Message.recipient == user)
-#     return messages
-
-
-def give_new_message_everyone(user, last_call_time):
-    messages = Message.select().where(Message.message_type == "everyone", Message.sending_time > last_call_time)
-    for message in messages:
-        viewed_message = Views.create(message=message, user=user)
-        viewed_message.save()
-    return messages
-
-
-def give_new_message_ptp(user, sender, last_call_time):
-    sender_object = Users.select().where(Users.login == sender)
-    messages = Message.select().where(Message.message_type == "ptp", Message.sender == sender_object,
-                                      Message.recipient == user, Message.sending_time > last_call_time)
-    for message in messages:
-        viewed_message = Views.create(message=message, user=user)
-        viewed_message.save()
-    return messages
-
-
-def send_message(sender, message_type, text, recipient=None):
-    if recipient is None:
-        recipient = Users.select().where(Users.login == "admin").get()
+def give_new_message(user, sender, last_call_time):
+    if sender == "everyone":
+        messages = Message.select().where(Message.message_type == "everyone", Message.sending_time > last_call_time)
+        for message in messages:
+            viewed_message = Views.create(message=message, user=user)
+            viewed_message.save()
+        return messages
     else:
+        sender_object = Users.select().where(Users.login == sender)
+        messages = Message.select().where(Message.message_type == "ptp", Message.sender in [sender_object, user],
+                                          Message.recipient in [sender_object, user], Message.sending_time > last_call_time)
+        for message in messages:
+            viewed_message = Views.create(message=message, user=user)
+            viewed_message.save()
+        return messages
+
+
+def send_message(sender, text, recipient):
+    if recipient == "everyone":
+        recipient = Users.select().where(Users.login == "admin").get()
+        message_type = "everyone"
+    else:
+        message_type = "ptp"
         recipient = Users.select().where(Users.login == recipient).get()
-    message = Message.create(sender=sender, message_type=message_type, text=' '.join(text), recipient=recipient)
+
+    message = Message.create(sender=sender, message_type=message_type, text=' '.join(text), recipient=recipient,
+                             sending_time=datetime.datetime.now())
     message.save()
     return message
 
 
-if __name__ == '__main__':
-    try:
-        dbhandle.connect()
-        Users.create_table()
-        Message.create_table()
-        Views.create_table()
-    except peewee.InternalError as px:
-        print(str(px))
-    try:
-        Message.create_table()
-    except peewee.InternalError as px:
-        print(str(px))
+# if __name__ == '__main__':
+#     try:
+#         dbhandle.connect()
+#         Users.create_table()
+#         Message.create_table()
+#         Views.create_table()
+#     except peewee.InternalError as px:
+#         pass
+#     try:
+#         Message.create_table()
+#     except peewee.InternalError as px:
+#         pass

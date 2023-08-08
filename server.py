@@ -11,14 +11,21 @@ logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler(stream=sys.stdout))
 
 
-async def write(writer: StreamWriter, code, message = ""):
-    writer.write(f"{code} {message}".encode())
+async def write(writer: StreamWriter, code, message=""):
+    writer.write(f"{code} {message}".encode() + b'\n')
     await writer.drain()
+
 
 async def read(reader: StreamReader):
     data = await reader.readline()
+    if len(data) == 0 or data == b"\n":
+        data = b"101"
     str_data = data.decode("utf-8").split()
-    return {"code": int(str_data[0]), "text": str_data[1:]}
+    code = int(str_data[0])
+    text = ""
+    if len(str_data) > 1:
+        text = str_data[1:]
+    return {"code": code, "text": text}
 
 
 class Server:
@@ -26,7 +33,6 @@ class Server:
         self.host = host
         self.port = port
         self.users = {}
-
 
     async def client_connected(self, reader: StreamReader, writer: StreamWriter):
         address = writer.get_extra_info('peername')
@@ -36,6 +42,10 @@ class Server:
         connect = False
         while True:
             message = await read(reader)
+            if message["code"] == 101:
+                await write(writer, 201)
+                continue
+
             if not current_user:
                 if message["code"] not in [110, 150]:
                     await write(writer, 210)
@@ -45,7 +55,7 @@ class Server:
                     if isinstance(user, db_controller.Users):
                         current_user = user
                         self.users[address] = user
-                        await write(writer, 211)
+                        await write(writer, 211, user.name)
                         continue
                     else:
                         await write(writer, 212)
@@ -67,25 +77,22 @@ class Server:
                 arg = message["text"][1:]
                 if command == "connect":
                     connect = arg[0]
-                    await write(writer, 220)
+                    await write(writer, 220, connect)
                     continue
                 if command == "exit":
+                    del self.users[address]
                     await write(writer, 240)
                     writer.close()
                     break
                 if command == "status":
-                    new_message = "Пользователи онлайн:\n"
+                    new_message = "Пользователи онлайн:|"
                     for user in self.users.values():
-                        new_message += user.login + "\n"
+                        new_message += user.login + "|"
                     await write(writer, 221, new_message)
 
             if connect:
                 if message["code"] == 131:
-                    db_controller.send_message(current_user, "everyone", message["text"][0:])
-                    await write(writer, 231)
-                    continue
-                if message["code"] == 132:
-                    db_controller.send_message(current_user, "ptp", message["text"][0:], connect)
+                    db_controller.send_message(current_user, message["text"][0:], connect)
                     await write(writer, 231)
                     continue
                 if message["code"] == 130:
@@ -93,35 +100,20 @@ class Server:
                         new_messages = db_controller.give_received_message_for_everyone(current_user)
                         messages = ""
                         for new_message in new_messages:
-                            messages += f"{new_message.sender.name} {new_message.text}\n"
-                        print(messages)
+                            messages += f"{new_message.sender.name} {new_message.text}|"
                         await write(writer, 230, messages)
                     else:
                         new_messages = db_controller.give_received_message_ptp(current_user, connect)
                         messages = ""
                         for new_message in new_messages:
-                            messages += f"{new_message.sender.name} {new_message.text}\n"
+                            messages += f"{new_message.sender.name} {new_message.text}"
                         await write(writer, 230, messages)
                 if message["code"] == 133:
-                    if connect == "everyone":
-                        new_messages = db_controller.give_new_message_everyone(current_user,
-                                                                               datetime.datetime.strptime(message["text"][0], '%Y-%m-%d-%H:%M:%S'))
-                        messages = ""
-                        for new_message in new_messages:
-                            messages += f"{new_message.sender.name} {new_message.text}\n"
-                        print(messages)
-                        await write(writer, 233, messages)
-                    else:
-                        new_messages = db_controller.give_new_message_ptp(current_user, connect,
-                                                                          datetime.datetime.strptime(message["text"][0], '%Y-%m-%d %H:%M:%S.%f'))
-                        messages = ""
-                        for new_message in new_messages:
-                            messages += f"{new_message.sender.name} {new_message.text}\n"
-                        print(messages)
-                        await write(writer, 233, messages)
-
-
-
+                    new_messages = db_controller.give_new_message(current_user, connect, datetime.datetime.strptime(message["text"][0], '%Y-%m-%d-%H:%M:%S.%f'))
+                    messages = ""
+                    for new_message in new_messages:
+                        messages += f"{new_message.sender.name} {new_message.text}\n"
+                    await write(writer, 233, messages)
 
     async def main(self):
         srv = await asyncio.start_server(
