@@ -1,35 +1,38 @@
-import logging
-import sys
 import asyncio
 from asyncio.streams import StreamReader, StreamWriter
 
 import db_controller
 from db_controller import *
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler(stream=sys.stdout))
+from config import Commands
+from logger import logger
 
 
-async def write(writer: StreamWriter, code, message=""):
-    writer.write(f"{code} {message}".encode() + b'\n')
-    await writer.drain()
+class Communication:
+    @staticmethod
+    async def write(writer: StreamWriter, code, message=""):
+        writer.write(f"{code} {message}".encode() + b'\n')
+        await writer.drain()
 
+    @staticmethod
+    def message_processing(data: bytes):
+        if len(data) == 0 or data == b"\n":
+            data = b"101"
+        str_data = data.decode("utf-8").split()
+        code = int(str_data[0])
+        text = ""
+        if len(str_data) > 1:
+            text = str_data[1:]
+        return code, text
 
-async def read(reader: StreamReader):
-    data = await reader.readline()
-    if len(data) == 0 or data == b"\n":
-        data = b"101"
-    str_data = data.decode("utf-8").split()
-    code = int(str_data[0])
-    text = ""
-    if len(str_data) > 1:
-        text = str_data[1:]
-    return {"code": code, "text": text}
+    @staticmethod
+    async def read(reader: StreamReader):
+        data = await reader.readline()
+        code, text = Communication.message_processing(data)
+        return {"code": code, "text": text}
 
 
 class Server:
-    def __init__(self, host="127.0.0.1", port=8000):
+    def __init__(self, host: str = "127.0.0.1", port: int = 8000):
         self.host = host
         self.port = port
         self.users = {}
@@ -41,79 +44,81 @@ class Server:
         current_user = False
         connect = False
         while True:
-            message = await read(reader)
-            if message["code"] == 101:
-                await write(writer, 201)
+            message = await Communication.read(reader)
+            if message["code"] == Commands.CHECK_CONNECTION:
+                await Communication.write(writer, Commands.CONNECT_OK)
                 continue
 
             if not current_user:
-                if message["code"] not in [110, 150]:
-                    await write(writer, 210)
+                if message["code"] not in [Commands.AUTH, Commands.REG]:
+                    await Communication.write(writer, Commands.NEED_AUTH)
                     continue
-                elif message["code"] == 110:
+                elif message["code"] == Commands.AUTH:
                     user = db_controller.auth(message["text"][0], message["text"][1])
                     if isinstance(user, db_controller.Users):
                         current_user = user
                         self.users[address] = user
-                        await write(writer, 211, user.name)
+                        await Communication.write(writer, Commands.AUTH_OK, user.name)
                         continue
                     else:
-                        await write(writer, 212)
+                        await Communication.write(writer, Commands.AUTH_ERROR)
                         continue
                 elif message["code"] == 150:
                     user = db_controller.reg(message["text"][0], message["text"][1], message["text"][2])
                     if isinstance(user, db_controller.Users):
-                        await write(writer, 250)
+                        await Communication.write(writer, Commands.REG_OK)
                         continue
                     elif message["text"] == "login_busy":
-                        await write(writer, 251)
+                        await Communication.write(writer, Commands.LOGIN_BUSY)
                         continue
                     else:
-                        await write(writer, 252)
+                        await Communication.write(writer, Commands.REG_ERROR)
                         continue
 
-            if message["code"] == 120:
+            if message["code"] == Commands.COMMAND:
                 command = message["text"][0]
                 arg = message["text"][1:]
                 if command == "connect":
                     connect = arg[0]
-                    await write(writer, 220, connect)
+                    await Communication.write(writer, Commands.CONNECT_CHAT, connect)
                     continue
                 if command == "exit":
                     del self.users[address]
-                    await write(writer, 240)
+                    await Communication.write(writer, Commands.CONNECT_END)
                     writer.close()
                     break
                 if command == "status":
                     new_message = "Пользователи онлайн:|"
                     for user in self.users.values():
                         new_message += user.login + "|"
-                    await write(writer, 221, new_message)
+                    await Communication.write(writer, Commands.STATUS_MESSAGE, new_message)
 
             if connect:
-                if message["code"] == 131:
+                if message["code"] == Commands.SEND_MESSAGE_EVERYONE:
                     db_controller.send_message(current_user, message["text"][0:], connect)
-                    await write(writer, 231)
+                    await Communication.write(writer, Commands.MESSAGE_EVERYONE_SAVE)
                     continue
-                if message["code"] == 130:
+                if message["code"] == Commands.SEND_HISTORY:
                     if connect == "everyone":
                         new_messages = db_controller.give_received_message_for_everyone(current_user)
                         messages = ""
                         for new_message in new_messages:
                             messages += f"{new_message.sender.name} {new_message.text}|"
-                        await write(writer, 230, messages)
+                        await Communication.write(writer, Commands.MESSAGE_HISTORY, messages)
                     else:
                         new_messages = db_controller.give_received_message_ptp(current_user, connect)
                         messages = ""
                         for new_message in new_messages:
                             messages += f"{new_message.sender.name} {new_message.text}"
-                        await write(writer, 230, messages)
-                if message["code"] == 133:
-                    new_messages = db_controller.give_new_message(current_user, connect, datetime.datetime.strptime(message["text"][0], '%Y-%m-%d-%H:%M:%S.%f'))
+                        await Communication.write(writer, Commands.MESSAGE_HISTORY, messages)
+                if message["code"] == Commands.SEND_NEW_MESSAGE:
+                    new_messages = db_controller.give_new_message(current_user, connect,
+                                                                  datetime.datetime.strptime(message["text"][0],
+                                                                                             '%Y-%m-%d-%H:%M:%S.%f'))
                     messages = ""
                     for new_message in new_messages:
                         messages += f"{new_message.sender.name} {new_message.text}\n"
-                    await write(writer, 233, messages)
+                    await Communication.write(writer, Commands.NEW_MESSAGE, messages)
 
     async def main(self):
         srv = await asyncio.start_server(

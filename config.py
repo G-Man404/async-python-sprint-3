@@ -1,0 +1,29 @@
+import enum
+
+
+db_name = 'main.db'
+
+
+class Commands(int, enum.Enum):
+    CHECK_CONNECTION = 101
+    AUTH = 110
+    REG = 150
+    COMMAND = 120
+    SEND_HISTORY = 130
+    SEND_MESSAGE_EVERYONE = 131
+    SEND_MESSAGE_PTP = 132
+    SEND_NEW_MESSAGE = 133
+
+    CONNECT_OK = 201
+    NEED_AUTH = 210
+    AUTH_OK = 211
+    AUTH_ERROR = 212
+    CONNECT_CHAT = 220
+    STATUS_MESSAGE = 221
+    MESSAGE_HISTORY = 230
+    MESSAGE_EVERYONE_SAVE = 231
+    NEW_MESSAGE = 233
+    CONNECT_END = 240
+    REG_OK = 250
+    LOGIN_BUSY = 251
+    REG_ERROR = 252

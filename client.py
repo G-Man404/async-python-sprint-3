@@ -6,6 +6,9 @@ import time
 import telnetlib
 
 
+from config import Commands
+
+
 class User:
     def __init__(self, login: str, name: str):
         self.login = login
@@ -49,19 +52,19 @@ class Client:
             return
         self.textbox_2.delete(1.0, "end-1c")
         if stext[0] == "/exit":
-            self.write(120, "exit")
+            self.write(Commands.COMMAND, "exit")
             sys.exit()
         if self.position_code == 0:
             if stext[0] == "/auth":
-                self.write(110, f"{stext[1]} {stext[2]}")
+                self.write(Commands.AUTH, f"{stext[1]} {stext[2]}")
             if stext[0] == "/reg":
-                self.write(150, f"{stext[1]} {stext[2]} {stext[3]}")
+                self.write(Commands.REG, f"{stext[1]} {stext[2]} {stext[3]}")
             if stext[0] == "/connect":
-                self.write(120, f"{'connect'} {stext[1]}")
+                self.write(Commands.COMMAND, f"{'connect'} {stext[1]}")
             if stext[0] == "/status":
-                self.write(120, f"status")
+                self.write(Commands.COMMAND, f"status")
         if self.position_code == 1:
-            self.write(131, text[0:-2])
+            self.write(Commands.SEND_MESSAGE_EVERYONE, text[0:-2])
 
     def app_setting(self):
         self.app.title = "Chat"
@@ -74,44 +77,44 @@ class Client:
             message = self.read()
             if self.position_code == 0:
                 self.textbox_1.delete(1.0, tk.END)
-                if message["code"] == 250:
+                if message["code"] == Commands.REG_OK:
                     self.textbox_1.insert(1.0,
                                           "Вы успешно зарегистрированы, для авторизации введите /auth login password")
-                if message["code"] == 251:
+                if message["code"] == Commands.LOGIN_BUSY:
                     self.textbox_1.insert(1.0,
                                           "К сожалению логин занят, попробуйте ещё раз")
-                if message["code"] == 210:
+                if message["code"] == Commands.NEED_AUTH:
                     self.textbox_1.insert(1.0,
                                           "Для авторизации введите /auth login password")
-                if message["code"] == 212:
+                if message["code"] == Commands.AUTH_ERROR:
                     self.textbox_1.insert(1.0,
                                           "Неверный логин или пароль.\n"
                                           "Для авторизации введите /auth login password")
-                if message["code"] == 211:
+                if message["code"] == Commands.AUTH_OK:
                     self.textbox_1.insert(1.0,
                                           f"Здравствуйте, {message['text']}\n"
                                           f"Вы можете выполнить следующие действия:\n"
                                           f"/status - список пользователей в онлайн\n"
                                           f"/connect user/everyone - присоединиться к чату\n"
                                           f"/exit - отключиться\n")
-                if message["code"] == 220:
+                if message["code"] == Commands.CONNECT_CHAT:
                     self.position_code = 1
                     self.sending_to = message["text"]
                     self.textbox_1.insert(1.0,
                                           "Вы успешно подключились к чату\n")
-                    self.write(130)
+                    self.write(Commands.SEND_HISTORY)
 
-                if message["code"] == 221:
+                if message["code"] == Commands.STATUS_MESSAGE:
                     msg = message["text"].replace("|", "\n")
                     self.textbox_1.insert(1.0, msg)
 
             elif self.position_code == 1:
-                if message["code"] == 233 and len(message["text"]) > 0:
+                if message["code"] == Commands.NEW_MESSAGE and len(message["text"]) > 0:
                     msg = message["text"].replace("|", "\n")
                     self.textbox_1.insert(1.0, msg)
                     self.last_message = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S.%f")
 
-                if message["code"] == 230:
+                if message["code"] == Commands.MESSAGE_HISTORY:
                     self.textbox_1.delete(1.0, tk.END)
                     msg = message["text"].replace("|", "\n")
                     self.textbox_1.insert(1.0, msg)
@@ -119,7 +122,7 @@ class Client:
 
     def update_text(self):
         while True:
-            self.write(133, self.last_message)
+            self.write(Commands.SEND_NEW_MESSAGE, self.last_message)
             time.sleep(1)
 
     def start_app(self):

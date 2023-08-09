@@ -1,12 +1,8 @@
-from peewee import *
+from peewee import SqliteDatabase, Model, PrimaryKeyField, CharField, DateTimeField, ForeignKeyField, DoesNotExist
 import datetime
-import peewee
+import config
 
-user = 'root'
-password = 'root'
-db_name = 'main'
-
-dbhandle = SqliteDatabase("main.db")
+dbhandle = SqliteDatabase(config.db_name)
 
 
 class BaseModel(Model):
@@ -137,17 +133,3 @@ def send_message(sender, text, recipient):
                              sending_time=datetime.datetime.now())
     message.save()
     return message
-
-
-# if __name__ == '__main__':
-#     try:
-#         dbhandle.connect()
-#         Users.create_table()
-#         Message.create_table()
-#         Views.create_table()
-#     except peewee.InternalError as px:
-#         pass
-#     try:
-#         Message.create_table()
-#     except peewee.InternalError as px:
-#         pass
